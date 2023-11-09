@@ -34,44 +34,83 @@ import SwiftUI
 
 // Custom AsyncSequence from Getting Started course
 struct Typewriter: AsyncSequence {
-  typealias AsyncIterator = TypewriterIterator
-  typealias Element = String
-  let phrase: String
+    typealias AsyncIterator = TypewriterIterator
+    typealias Element = String
+    let phrase: String
 
-  func makeAsyncIterator() -> TypewriterIterator {
-    return TypewriterIterator(phrase)
-  }
+    func makeAsyncIterator() -> TypewriterIterator {
+        return TypewriterIterator(phrase)
+    }
 }
 
 struct TypewriterIterator: AsyncIteratorProtocol {
-  typealias Element = String
-  let phrase: String
-  var index: String.Index
+    typealias Element = String
+    let phrase: String
+    var index: String.Index
 
-  init(_ phrase: String) {
-    self.phrase = phrase
-    self.index = phrase.startIndex
-  }
+    init(_ phrase: String) {
+        self.phrase = phrase
+        self.index = phrase.startIndex
+    }
 
-  mutating func next() async throws -> String? {
-    guard index < phrase.endIndex else { return nil }
+    mutating func next() async throws -> String? {
+        guard index < phrase.endIndex else { return nil }
 //    try await Task.sleep(until: .now + .seconds(1), clock: .continuous)
-    try await Task.sleep(nanoseconds: 1_000_000_000)
-    defer { index = phrase.index(after: index) }
-    return String(phrase[phrase.startIndex...index])
-  }
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        defer { index = phrase.index(after: index) }
+        return String(phrase[phrase.startIndex...index])
+    }
 }
 
 // Comment out this Task before running AsyncStreams
-Task {
-  for try await item in Typewriter(phrase: "Hello, world!") {
-    print(item)
-  }
-  print("AsyncSequence Done")
-}
+// Task {
+//  for try await item in Typewriter(phrase: "Hello, world!") {
+//    print(item)
+//  }
+//  print("AsyncSequence Done")
+// }
 //: ## Two Kinds of AsyncStream
 let phrase = "Hello, world!"
 var index = phrase.startIndex
 // Typewriter with push-based AsyncStream
 
+let streamPush = AsyncStream<String> { continueation in
+    Task {
+        while index < phrase.endIndex {
+            do {
+                try await Task.sleep(until: .now + .seconds(1), clock: .continuous)
+                continueation.yield(String(phrase[phrase.startIndex...index]))
+                index = phrase.index(after: index)
+            } catch {
+                continueation.finish()
+            }
+        }
+        continueation.finish()
+    }
+}
+
+// Task {
+//    for try await item in streamPush {
+//        print(item)
+//    }
+//    print("Push AsyncStream done")
+// }
+
 // Typewriter with pull-based AsyncStream
+let streamPull = AsyncStream<String> {
+    guard index < phrase.endIndex else { return nil }
+    do {
+        try await Task.sleep(until: .now + .seconds(1), clock: .continuous)
+    } catch {
+        return nil
+    }
+    defer { index = phrase.index(after: index) }
+    return String(phrase[phrase.startIndex...index])
+}
+
+// Task {
+//    for try await item in streamPull {
+//        print(item)
+//    }
+//    print("Pull AsyncStream done")
+// }
