@@ -99,6 +99,19 @@ class BlabberModel: ObservableObject {
     }
   }
 
+  func observeAppStatus() async {
+    Task {
+      for await _ in await NotificationCenter.default.notifications(for: UIApplication.willResignActiveNotification) {
+        try? await say("\(username) went away", isSystemMessage: true)
+      }
+    }
+    Task {
+      for await _ in await NotificationCenter.default.notifications(for: UIApplication.didBecomeActiveNotification) {
+        try? await say("\(username) came back", isSystemMessage: true)
+      }
+    }
+  }
+
   /// Reads the server chat stream and updates the data model.
   @MainActor
   private func readMessages(stream: URLSession.AsyncBytes) async throws {
@@ -119,6 +132,11 @@ class BlabberModel: ObservableObject {
       )
     )
 
+    let notifications = Task {
+      await observeAppStatus()
+    }
+
+    defer { notifications.cancel() }
     for try await line in stream.lines {
       if let data = line.data(using: .utf8),
          let update = try? JSONDecoder().decode(Message.self, from: data)
