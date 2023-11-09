@@ -30,8 +30,8 @@
 /// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 /// THE SOFTWARE.
 
-import Foundation
 import CoreLocation
+import Foundation
 import UIKit
 
 /// The app model that communicates with the server.
@@ -39,8 +39,7 @@ class BlabberModel: ObservableObject {
   var username = ""
   var urlSession = URLSession.shared
 
-  init() {
-  }
+  init() {}
 
   /// Current live updates
   @Published var messages: [Message] = []
@@ -49,12 +48,30 @@ class BlabberModel: ObservableObject {
   private var delegate: ChatLocationDelegate?
 
   /// Shares the current user's address in chat.
-  func shareLocation() async throws {
-  }
+  func shareLocation() async throws {}
 
   /// Does a countdown and sends the message.
   func countdown(to message: String) async throws {
     guard !message.isEmpty else { return }
+    var countdown = 3
+
+    let counter = AsyncStream<String> {
+      do {
+        try await Task.sleep(until: .now + .seconds(1), clock: .continuous)
+        defer { countdown -= 1 }
+        switch countdown {
+        case 1...: return "\(countdown)..."
+        case 0: return "🎉 " + message
+        default: return nil
+        }
+      } catch {
+        return nil
+      }
+    }
+
+    for await countdownMessage in counter {
+      try await say(countdownMessage)
+    }
   }
 
   /// Start live chat updates
@@ -63,7 +80,7 @@ class BlabberModel: ObservableObject {
     guard
       let query = username.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
       let url = URL(string: "http://localhost:8080/chat/room?\(query)")
-      else {
+    else {
       throw "Invalid username"
     }
 
@@ -91,10 +108,11 @@ class BlabberModel: ObservableObject {
     }
     guard
       let data = first.data(using: .utf8),
-        let status = try? JSONDecoder()
-        .decode(ServerStatus.self, from: data) else {
-          throw "Invalid response from server"
-        }
+      let status = try? JSONDecoder()
+      .decode(ServerStatus.self, from: data)
+    else {
+      throw "Invalid response from server"
+    }
     messages.append(
       Message(
         message: "\(status.activeUsers) active users"
@@ -103,9 +121,10 @@ class BlabberModel: ObservableObject {
 
     for try await line in stream.lines {
       if let data = line.data(using: .utf8),
-          let update = try? JSONDecoder().decode(Message.self, from: data) {
-          messages.append(update)
-        }
+         let update = try? JSONDecoder().decode(Message.self, from: data)
+      {
+        messages.append(update)
+      }
     }
   }
 
